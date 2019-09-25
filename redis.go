@@ -1,7 +1,6 @@
 package mgr
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/gomodule/redigo/redis"
@@ -51,16 +50,6 @@ func (t *ToRedis) StartDatabase(n int, offset int) error {
 		}
 	}
 
-	return nil
-}
-
-func (t *ToRedis) Aux(auxkey, auxval []byte) error {
-	fmt.Printf("decoderDB=%d %q -> %q\n", t.decoderDB, auxkey, auxval)
-	return nil
-}
-
-func (t *ToRedis) ModuleAux(modName []byte) error {
-	fmt.Printf("decoderDB=%d %q \n", t.decoderDB, modName)
 	return nil
 }
 
