@@ -7,7 +7,7 @@ mgr.sample.yaml
 
 ```yaml
 to_redis:
-- source_file: "./testdata/dump.rdb"
+- source_file: "dump.rdb"
   address: "localhost:6379"
   migrates:
   - source_db: 0
