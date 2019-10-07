@@ -231,8 +231,6 @@ func (d *decode) decode() error {
 			expiry = 0
 		}
 	}
-
-	panic("not reached")
 }
 
 func (d *decode) readByte() (byte, error) {
@@ -850,8 +848,6 @@ func (d *decode) readFloat64() (float64, error) {
 		f, err := strconv.ParseFloat(string(floatBytes), 64)
 		return f, err
 	}
-
-	panic("not reached")
 }
 
 /**
@@ -889,8 +885,6 @@ func (d *decode) readLength() (uint32, bool, error) {
 			return length, false, err
 		}
 	}
-
-	panic("not reached")
 }
 
 func lzfDecompress(in []byte, outlen int) []byte {

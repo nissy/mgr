@@ -1,6 +1,7 @@
 package mgr
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/gomodule/redigo/redis"
@@ -8,15 +9,16 @@ import (
 )
 
 type ToRedis struct {
-	SourceFile string          `yaml:"source_file"`
-	Address    string          `yaml:"address"`
-	Migrates   []*MigrateRedis `yaml:"migrates"`
-
-	isTo        bool       `yaml:"-"`
-	conn        redis.Conn `yaml:"-"`
-	decoderDB   int        `yaml:"-"`
-	decoderList int        `yaml:"-"`
-	decoder.Nop `yaml:"-"`
+	SourceFile    string          `yaml:"source_file"`
+	Address       string          `yaml:"address"`
+	Migrates      []*MigrateRedis `yaml:"migrates"`
+	conn          redis.Conn
+	toDB          int
+	isTo          bool
+	decoderExpire int64
+	decoderDB     int
+	decoderList   int
+	decoder.Nop
 }
 
 type MigrateRedis struct {
@@ -45,83 +47,77 @@ func (t *ToRedis) StartDatabase(n int, offset int) error {
 			if _, err := t.conn.Do("SELECT", v.ToDB); err != nil {
 				return err
 			}
+			t.toDB = v.ToDB
 			t.isTo = true
 			return nil
 		}
 	}
-
 	return nil
 }
 
-func (t *ToRedis) Set(key, value []byte, expire int64) error {
+func (t *ToRedis) redisDo(cmd string, key []byte, args ...interface{}) (err error) {
 	if t.isTo {
-		if _, err := t.conn.Do("MULTI"); err != nil {
-			return err
-		}
-		if err := t.conn.Send("SET", key, value); err != nil {
-			return err
-		}
-		if expire > 0 {
-			if err := t.conn.Send("EXPIRE", key, expire); err != nil {
-				return err
-			}
-		}
-		if _, err := t.conn.Do("EXEC"); err != nil {
-			return err
+		if _, err = t.conn.Do(cmd, append([]interface{}{key}, args...)...); err == nil {
+			fmt.Printf("SOURCE=%v TO=%v %s %s\n", t.decoderDB, t.toDB, cmd, key)
 		}
 	}
+	return err
+}
 
+func (t *ToRedis) Set(key, value []byte, expire int64) error {
+	if err := t.redisDo("SET", key, value); err != nil {
+		return err
+	}
+	if expire > 0 {
+		return t.redisDo("EXPIRE", key, expire)
+	}
 	return nil
 }
 
 func (t *ToRedis) Hset(key, field, value []byte) error {
-	if t.isTo {
-		if _, err := t.conn.Do("HSET", key, field, value); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return t.redisDo("HSET", key, field, value)
 }
 
 func (t *ToRedis) Sadd(key, member []byte) error {
-	if t.isTo {
-		if _, err := t.conn.Do("SADD", key, member); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return t.redisDo("SADD", key, member)
 }
 
 func (t *ToRedis) StartList(key []byte, length, expire int64) error {
 	t.decoderList = 0
+	t.decoderExpire = expire
 	return nil
 }
 
 func (t *ToRedis) Rpush(key, value []byte) error {
-	if t.isTo {
-		if _, err := t.conn.Do("RPUSH", key, value); err != nil {
+	t.decoderList++
+	if err := t.redisDo("RPUSH", key, value); err != nil {
+		return err
+	}
+	if t.decoderExpire > 0 {
+		if err := t.redisDo("EXPIRE", key, t.decoderExpire); err != nil {
 			return err
 		}
-		t.decoderList++
+		t.decoderExpire = 0
 	}
-
 	return nil
 }
 
 func (t *ToRedis) StartZSet(key []byte, cardinality, expire int64) error {
 	t.decoderList = 0
+	t.decoderExpire = expire
 	return nil
 }
 
 func (t *ToRedis) Zadd(key []byte, score float64, member []byte) error {
-	if t.isTo {
-		if _, err := t.conn.Do("ZADD", key, score, member); err != nil {
+	t.decoderList++
+	if err := t.redisDo("ZADD", key, score, member); err != nil {
+		return err
+	}
+	if t.decoderExpire > 0 {
+		if err := t.redisDo("EXPIRE", key, t.decoderExpire); err != nil {
 			return err
 		}
-		t.decoderList++
+		t.decoderExpire = 0
 	}
-
 	return nil
 }
