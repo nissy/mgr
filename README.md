@@ -3,7 +3,7 @@ mgr is redis migrations command.
 
 ### config
 
-mgr.sample.yaml
+mgr.yaml
 
 ```yaml
 to_redis:
