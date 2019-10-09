@@ -15,7 +15,7 @@ type ToRedis struct {
 	conn          redis.Conn
 	toDB          int
 	isTo          bool
-	decoderExpire int64
+	decoderExpiry int64
 	decoderDB     int
 	decoderList   int
 	decoder.Nop
@@ -55,7 +55,7 @@ func (t *ToRedis) StartDatabase(n int, offset int) error {
 	return nil
 }
 
-func (t *ToRedis) redisDo(cmd string, key []byte, args ...interface{}) (err error) {
+func (t *ToRedis) exec(cmd string, key []byte, args ...interface{}) (err error) {
 	if t.isTo {
 		if _, err = t.conn.Do(cmd, append([]interface{}{key}, args...)...); err == nil {
 			fmt.Printf("SOURCE=%v TO=%v %s %s\n", t.decoderDB, t.toDB, cmd, key)
@@ -64,60 +64,72 @@ func (t *ToRedis) redisDo(cmd string, key []byte, args ...interface{}) (err erro
 	return err
 }
 
-func (t *ToRedis) Set(key, value []byte, expire int64) error {
-	if err := t.redisDo("SET", key, value); err != nil {
-		return err
-	}
-	if expire > 0 {
-		return t.redisDo("EXPIRE", key, expire)
+func (t *ToRedis) execExpire(key []byte) error {
+	if t.decoderExpiry > 0 {
+		if _, err := t.conn.Do("EXPIRE", key, t.decoderExpiry); err != nil {
+			return err
+		}
+		t.decoderExpiry = 0
 	}
 	return nil
 }
 
+func (t *ToRedis) Set(key, value []byte, expiry int64) error {
+	if err := t.exec("SET", key, value); err != nil {
+		return err
+	}
+	t.decoderExpiry = expiry
+	return t.execExpire(key)
+}
+
+func (t *ToRedis) StartHash(key []byte, length, expiry int64) (err error) {
+	t.decoderExpiry = expiry
+	return err
+}
+
 func (t *ToRedis) Hset(key, field, value []byte) error {
-	return t.redisDo("HSET", key, field, value)
+	if err := t.exec("HSET", key, field, value); err != nil {
+		return err
+	}
+	return t.execExpire(key)
+}
+
+func (t *ToRedis) StartSet(key []byte, cardinality, expiry int64) (err error) {
+	t.decoderExpiry = expiry
+	return err
 }
 
 func (t *ToRedis) Sadd(key, member []byte) error {
-	return t.redisDo("SADD", key, member)
+	if err := t.exec("SADD", key, member); err != nil {
+		return err
+	}
+	return t.execExpire(key)
 }
 
-func (t *ToRedis) StartList(key []byte, length, expire int64) error {
+func (t *ToRedis) StartList(key []byte, length, expiry int64) error {
 	t.decoderList = 0
-	t.decoderExpire = expire
+	t.decoderExpiry = expiry
 	return nil
 }
 
 func (t *ToRedis) Rpush(key, value []byte) error {
 	t.decoderList++
-	if err := t.redisDo("RPUSH", key, value); err != nil {
+	if err := t.exec("RPUSH", key, value); err != nil {
 		return err
 	}
-	if t.decoderExpire > 0 {
-		if err := t.redisDo("EXPIRE", key, t.decoderExpire); err != nil {
-			return err
-		}
-		t.decoderExpire = 0
-	}
-	return nil
+	return t.execExpire(key)
 }
 
-func (t *ToRedis) StartZSet(key []byte, cardinality, expire int64) error {
+func (t *ToRedis) StartZSet(key []byte, cardinality, expiry int64) error {
 	t.decoderList = 0
-	t.decoderExpire = expire
+	t.decoderExpiry = expiry
 	return nil
 }
 
 func (t *ToRedis) Zadd(key []byte, score float64, member []byte) error {
 	t.decoderList++
-	if err := t.redisDo("ZADD", key, score, member); err != nil {
+	if err := t.exec("ZADD", key, score, member); err != nil {
 		return err
 	}
-	if t.decoderExpire > 0 {
-		if err := t.redisDo("EXPIRE", key, t.decoderExpire); err != nil {
-			return err
-		}
-		t.decoderExpire = 0
-	}
-	return nil
+	return t.execExpire(key)
 }
