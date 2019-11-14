@@ -4,6 +4,8 @@ to_redis:
   migrates:
   - source_db: 0
     to_db: 1
+    to_expire_min_sec: 0
+    to_expire_max_sec: 259200 # 86400 x 3
   - source_db: 1
     to_db: 2
   - source_db: 2
