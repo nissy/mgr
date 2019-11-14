@@ -82,20 +82,21 @@ func (t *ToRedis) execExpire(key []byte) error {
 }
 
 func (t *ToRedis) isNotSend(expiryUnixMs int64) bool {
-	exUnixNano := time.Unix(expiryUnixMs/1000, 0).UnixNano()
-	minUnixNano := now.Add(time.Duration(t.toExpireMinSec) * time.Second).UnixNano()
-	maxUnixNano := now.Add(time.Duration(t.toExpireMaxSec) * time.Second).UnixNano()
-	if exUnixNano < now.UnixNano() {
-		return true
-	}
-	if minUnixNano > exUnixNano {
-		return true
-	}
-	if t.toExpireMaxSec > 0 {
-		if maxUnixNano < exUnixNano {
+	if expiryUnixMs > 0 {
+		exUnixNano := time.Unix(0, expiryUnixMs*1000000).UnixNano()
+		if exUnixNano < now.UnixNano() {
 			return true
 		}
+		if now.Add(time.Duration(t.toExpireMinSec)*time.Second).UnixNano() > exUnixNano {
+			return true
+		}
+		if t.toExpireMaxSec > 0 {
+			if now.Add(time.Duration(t.toExpireMaxSec)*time.Second).UnixNano() < exUnixNano {
+				return true
+			}
+		}
 	}
+
 	return !t.isToDB
 }
 
