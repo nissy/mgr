@@ -1,5 +1,5 @@
 NAME = mgr
-VERSION ?= v0.0.1
+VERSION ?= v0.0.3
 GOOS := $(shell go env GOOS)
 GOARCH := $(shell go env GOARCH)
 

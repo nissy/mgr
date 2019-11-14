@@ -85,16 +85,13 @@ func (t *ToRedis) isNotSend(expiryUnixMs int64) bool {
 	exUnixNano := time.Unix(expiryUnixMs/1000, 0).UnixNano()
 	minUnixNano := now.Add(time.Duration(t.toExpireMinSec) * time.Second).UnixNano()
 	maxUnixNano := now.Add(time.Duration(t.toExpireMaxSec) * time.Second).UnixNano()
-	if t.toExpireMinSec > 0 {
-		if minUnixNano > exUnixNano {
-			return true
-		}
+	if minUnixNano > exUnixNano {
+		return true
 	}
-	if t.toExpireMaxSec > 0 {
-		if maxUnixNano < exUnixNano {
-			return true
-		}
+	if maxUnixNano < exUnixNano {
+		return true
 	}
+
 	return !t.isToDB
 }
 
